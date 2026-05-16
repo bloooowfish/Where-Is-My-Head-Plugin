@@ -1,0 +1,10 @@
+{
+  "Author": "BlowFish",
+  "Name": "Where Is My Head",
+  "Punchline": "Control internal render policy from Dalamud.",
+  "Description": "It help you save on electricity bills by blocking 3D rendering.",
+  "InternalName": "WhereIsMyHead",
+  "ApplicableVersion": "any",
+  "DalamudApiLevel": 15,
+  "Tags": [ "rendering", "diagnostic" ]
+}

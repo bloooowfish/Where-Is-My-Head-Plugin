@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WhereIsMyHead", "WhereIsMyHead\WhereIsMyHead.csproj", "{59281B64-5A1C-4F56-9EDF-7F8327B65EA1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WhereIsMyHead.Tests", "WhereIsMyHead.Tests\WhereIsMyHead.Tests.csproj", "{6177761E-E532-4CFD-8CE8-54C7572C146C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{59281B64-5A1C-4F56-9EDF-7F8327B65EA1}.Debug|x64.ActiveCfg = Debug|x64
+		{59281B64-5A1C-4F56-9EDF-7F8327B65EA1}.Debug|x64.Build.0 = Debug|x64
+		{59281B64-5A1C-4F56-9EDF-7F8327B65EA1}.Release|x64.ActiveCfg = Release|x64
+		{59281B64-5A1C-4F56-9EDF-7F8327B65EA1}.Release|x64.Build.0 = Release|x64
+		{6177761E-E532-4CFD-8CE8-54C7572C146C}.Debug|x64.ActiveCfg = Debug|x64
+		{6177761E-E532-4CFD-8CE8-54C7572C146C}.Debug|x64.Build.0 = Debug|x64
+		{6177761E-E532-4CFD-8CE8-54C7572C146C}.Release|x64.ActiveCfg = Release|x64
+		{6177761E-E532-4CFD-8CE8-54C7572C146C}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {97C01B69-7F3E-4D67-8B8C-490CFF99816A}
+	EndGlobalSection
+EndGlobal
