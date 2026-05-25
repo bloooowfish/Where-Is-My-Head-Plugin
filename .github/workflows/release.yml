@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Four-part release version, e.g. 0.1.0.1
+        description: Four-part release version, e.g. 7.5.0.1
         required: true
         type: string
 
@@ -41,8 +41,30 @@ jobs:
         shell: pwsh
         run: dotnet restore .\WhereIsMyHead.sln
 
+      - name: Check master dispatch token
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.MASTER_REPO_DISPATCH_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
+            throw 'Missing MASTER_REPO_DISPATCH_TOKEN secret. It must allow repository_dispatch on bloooowfish/MyPluginMaster.'
+          }
+
+          gh api repos/bloooowfish/MyPluginMaster --jq .full_name
+
       - name: Build, tag, and publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\Build-GitHubRelease.ps1 -Version '${{ inputs.version }}'
+
+      - name: Notify plugin master
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.MASTER_REPO_DISPATCH_TOKEN }}
+        run: |
+          gh api --method POST repos/bloooowfish/MyPluginMaster/dispatches `
+            -f event_type=plugin-release `
+            -f client_payload[repository]="${{ github.repository }}" `
+            -f client_payload[version]="${{ inputs.version }}" `
+            -f client_payload[tag]="v${{ inputs.version }}"

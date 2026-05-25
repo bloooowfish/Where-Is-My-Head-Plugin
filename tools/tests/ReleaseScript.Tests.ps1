@@ -122,6 +122,9 @@ Assert-Match -Actual $releaseWorkflowText -Pattern 'workflow_dispatch' -Message 
 Assert-Match -Actual $releaseWorkflowText -Pattern 'ref:\s*main' -Message 'Release workflow should check out main for release commits.'
 Assert-Match -Actual $releaseWorkflowText -Pattern 'goatcorp\.github\.io/dalamud-distrib/stg/latest\.zip' -Message 'Release workflow should install Dalamud dev files on the runner.'
 Assert-Match -Actual $releaseWorkflowText -Pattern 'Build-GitHubRelease\.ps1' -Message 'Release workflow should delegate build and publish work to the CI script.'
+Assert-Match -Actual $releaseWorkflowText -Pattern 'MASTER_REPO_DISPATCH_TOKEN' -Message 'Release workflow should require a token that can dispatch MyPluginMaster updates.'
+Assert-Match -Actual $releaseWorkflowText -Pattern 'repos/bloooowfish/MyPluginMaster/dispatches' -Message 'Release workflow should notify MyPluginMaster after publishing a release.'
+Assert-Match -Actual $releaseWorkflowText -Pattern 'event_type=plugin-release' -Message 'Release workflow should send the plugin-release dispatch event.'
 
 $gitignoreText = Get-Content -Raw $gitignore
 Assert-Match -Actual $gitignoreText -Pattern 'dist/' -Message 'Release build output directory should be ignored.'
