@@ -13,7 +13,7 @@
 ## Custom repository URL
 
 ```text
-https://raw.githubusercontent.com/bloooowfish/Where-Is-My-Head-Plugin/refs/heads/main/repo.json
+https://raw.githubusercontent.com/bloooowfish/MyPluginMaster/refs/heads/main/repo.json
 ```
 
 ## 참고

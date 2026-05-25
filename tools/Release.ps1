@@ -94,7 +94,7 @@ function Assert-ReleaseVersion {
     param([Parameter(Mandatory = $true)][string] $Value)
 
     if ($Value -notmatch $ReleaseVersionPattern) {
-        Fail "Release version must be a four-part numeric version such as 0.1.0.0."
+        Fail "Release version must be a four-part numeric version such as 7.5.0.0."
     }
 }
 
