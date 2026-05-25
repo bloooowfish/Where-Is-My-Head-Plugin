@@ -87,6 +87,15 @@ Assert-Match -Actual $releaseScriptText -Pattern 'Assert-TagAvailable' -Message 
 Assert-Match -Actual $releaseScriptText -Pattern 'Assert-GitHubReleaseAvailable' -Message 'Release script should reject duplicate GitHub releases before publishing.'
 Assert-Match -Actual $releaseScriptText -Pattern 'Release workflow preflight passed' -Message 'Release script should support a no-mutation workflow preflight mode.'
 Assert-Match -Actual $releaseScriptText -Pattern 'workflow\s*'',\s*''run' -Message 'Release script should trigger the GitHub Actions workflow.'
+Assert-Match -Actual $releaseScriptText -Pattern '\$MasterRepoName = ''MyPluginMaster''' -Message 'Release script should know the master repository to update after release.'
+Assert-Match -Actual $releaseScriptText -Pattern '\$MasterWorkflowFile = ''update-repo\.yml''' -Message 'Release script should target the master update workflow.'
+Assert-Match -Actual $releaseScriptText -Pattern 'Invoke-WorkflowAndWait' -Message 'Release script should wait for release and master workflows to complete.'
+Assert-Match -Actual $releaseScriptText -Pattern 'gh run list' -Message 'Release script should discover the queued workflow run.'
+Assert-Match -Actual $releaseScriptText -Pattern 'displayTitle' -Message 'Release script should match workflow runs by display title correlation.'
+Assert-Match -Actual $releaseScriptText -Pattern '\[Guid\]::NewGuid' -Message 'Release script should generate unique workflow correlation ids.'
+Assert-Match -Actual $releaseScriptText -Pattern 'correlation_id=' -Message 'Release script should pass correlation ids into workflow_dispatch inputs.'
+Assert-Match -Actual $releaseScriptText -Pattern 'run'',\s*''watch' -Message 'Release script should watch workflow completion before continuing.'
+Assert-Match -Actual $releaseScriptText -Pattern 'Release and master repository update completed' -Message 'Release script should report completion after both workflows finish.'
 Assert-Match -Actual $releaseScriptText -Pattern 'function Invoke-ScalarCommand' -Message 'Release script should use a scalar native-command helper.'
 Assert-Match -Actual $releaseScriptText -Pattern 'function Invoke-CommandCapture' -Message 'Release script should capture expected native-command failures without terminating.'
 Assert-NotMatch -Actual $releaseScriptText -Pattern 'dotnet\s*'',\s*''build' -Message 'Release trigger script should not build locally.'
@@ -119,12 +128,14 @@ Assert-NotMatch -Actual $readmeText -Pattern 'https://raw\.githubusercontent\.co
 
 $releaseWorkflowText = Get-Content -Raw $releaseWorkflow
 Assert-Match -Actual $releaseWorkflowText -Pattern 'workflow_dispatch' -Message 'Release workflow should be manually triggerable.'
+Assert-Match -Actual $releaseWorkflowText -Pattern 'run-name: Release \$\{\{ inputs\.version \}\} \$\{\{ inputs\.correlation_id \}\}' -Message 'Release workflow should expose correlation ids in the run name.'
+Assert-Match -Actual $releaseWorkflowText -Pattern 'correlation_id:' -Message 'Release workflow should accept an orchestration correlation id.'
 Assert-Match -Actual $releaseWorkflowText -Pattern 'ref:\s*main' -Message 'Release workflow should check out main for release commits.'
 Assert-Match -Actual $releaseWorkflowText -Pattern 'goatcorp\.github\.io/dalamud-distrib/stg/latest\.zip' -Message 'Release workflow should install Dalamud dev files on the runner.'
 Assert-Match -Actual $releaseWorkflowText -Pattern 'Build-GitHubRelease\.ps1' -Message 'Release workflow should delegate build and publish work to the CI script.'
-Assert-Match -Actual $releaseWorkflowText -Pattern 'MASTER_REPO_DISPATCH_TOKEN' -Message 'Release workflow should require a token that can dispatch MyPluginMaster updates.'
-Assert-Match -Actual $releaseWorkflowText -Pattern 'repos/bloooowfish/MyPluginMaster/dispatches' -Message 'Release workflow should notify MyPluginMaster after publishing a release.'
-Assert-Match -Actual $releaseWorkflowText -Pattern 'event_type=plugin-release' -Message 'Release workflow should send the plugin-release dispatch event.'
+Assert-NotMatch -Actual $releaseWorkflowText -Pattern 'MASTER_REPO_DISPATCH_TOKEN' -Message 'Release workflow should not require cross-repository dispatch secrets.'
+Assert-NotMatch -Actual $releaseWorkflowText -Pattern 'repos/bloooowfish/MyPluginMaster/dispatches' -Message 'Release workflow should not notify MyPluginMaster directly.'
+Assert-NotMatch -Actual $releaseWorkflowText -Pattern 'event_type=plugin-release' -Message 'Release workflow should not use repository_dispatch events.'
 
 $gitignoreText = Get-Content -Raw $gitignore
 Assert-Match -Actual $gitignoreText -Pattern 'dist/' -Message 'Release build output directory should be ignored.'

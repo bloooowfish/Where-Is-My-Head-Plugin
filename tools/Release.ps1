@@ -15,6 +15,11 @@ $RepoOwner = 'bloooowfish'
 $RepoName = 'Where-Is-My-Head-Plugin'
 $RemoteName = 'origin'
 $WorkflowFile = 'release.yml'
+$MasterRepoOwner = 'bloooowfish'
+$MasterRepoName = 'MyPluginMaster'
+$MasterWorkflowFile = 'update-repo.yml'
+$WorkflowRunDiscoveryTimeoutSeconds = 180
+$WorkflowRunPollIntervalSeconds = 5
 $ReleaseVersionPattern = '^\d+\.\d+\.\d+\.\d+$'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -223,26 +228,193 @@ function Assert-GitHubReleaseAvailable {
 }
 
 function Assert-WorkflowAvailable {
+    param(
+        [string] $Owner = $RepoOwner,
+        [string] $Name = $RepoName,
+        [string] $Workflow = $WorkflowFile
+    )
+
     Invoke-Checked -FilePath 'gh' -Arguments @(
         'workflow',
         'view',
-        $WorkflowFile,
+        $Workflow,
         '--repo',
-        "$RepoOwner/$RepoName"
+        "$Owner/$Name"
     )
 }
 
-function Invoke-ReleaseWorkflow {
-    Invoke-Checked -FilePath 'gh' -Arguments @(
+function Get-RepositoryMainHead {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Owner,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Name
+    )
+
+    Invoke-ScalarCommand -FilePath 'gh' -FailureMessage "Failed to read $Owner/$Name main HEAD." -Arguments @(
+        'api',
+        "repos/$Owner/$Name/commits/main",
+        '--jq',
+        '.sha'
+    )
+}
+
+function Get-WorkflowRunList {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Owner,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Workflow
+    )
+
+    $output = & gh run list `
+        --repo "$Owner/$Name" `
+        --workflow $Workflow `
+        --branch main `
+        --event workflow_dispatch `
+        --limit 20 `
+        --json databaseId,createdAt,displayTitle,headSha,status,conclusion,url
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        Fail "Failed to list workflow runs for $Owner/$Name/$Workflow."
+    }
+
+    $json = ($output | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($json)) {
+        return @()
+    }
+
+    return @($json | ConvertFrom-Json)
+}
+
+function Find-QueuedWorkflowRun {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Owner,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Workflow,
+
+        [Parameter(Mandatory = $true)]
+        [string] $HeadSha,
+
+        [Parameter(Mandatory = $true)]
+        [DateTimeOffset] $QueuedAfterUtc,
+
+        [Parameter(Mandatory = $true)]
+        [string] $CorrelationId
+    )
+
+    $runs = Get-WorkflowRunList -Owner $Owner -Name $Name -Workflow $Workflow
+    foreach ($run in @($runs | Sort-Object -Property createdAt -Descending)) {
+        if ([string] $run.headSha -ne $HeadSha) {
+            continue
+        }
+
+        $createdAt = [DateTimeOffset]::Parse([string] $run.createdAt).ToUniversalTime()
+        if ($createdAt -lt $QueuedAfterUtc.AddSeconds(-30)) {
+            continue
+        }
+
+        if ([string] $run.displayTitle -notmatch [regex]::Escape($CorrelationId)) {
+            continue
+        }
+
+        return $run
+    }
+
+    return $null
+}
+
+function Wait-WorkflowRunDiscovery {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Owner,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Workflow,
+
+        [Parameter(Mandatory = $true)]
+        [string] $HeadSha,
+
+        [Parameter(Mandatory = $true)]
+        [DateTimeOffset] $QueuedAfterUtc,
+
+        [Parameter(Mandatory = $true)]
+        [string] $CorrelationId
+    )
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($WorkflowRunDiscoveryTimeoutSeconds)
+    do {
+        $run = Find-QueuedWorkflowRun -Owner $Owner -Name $Name -Workflow $Workflow -HeadSha $HeadSha -QueuedAfterUtc $QueuedAfterUtc -CorrelationId $CorrelationId
+        if ($null -ne $run) {
+            return $run
+        }
+
+        Start-Sleep -Seconds $WorkflowRunPollIntervalSeconds
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    Fail "Timed out waiting for queued workflow run: $Owner/$Name/$Workflow"
+}
+
+function Invoke-WorkflowAndWait {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Owner,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Workflow,
+
+        [Parameter(Mandatory = $true)]
+        [string] $CorrelationId,
+
+        [string[]] $Fields = @()
+    )
+
+    $headSha = Get-RepositoryMainHead -Owner $Owner -Name $Name
+    $queuedAfterUtc = [DateTimeOffset]::UtcNow
+    $arguments = @(
         'workflow',
         'run',
-        $WorkflowFile,
+        $Workflow,
         '--repo',
-        "$RepoOwner/$RepoName",
+        "$Owner/$Name",
         '--ref',
-        'main',
-        '-f',
-        "version=$Version"
+        'main'
+    )
+
+    foreach ($field in $Fields) {
+        $arguments += @('-f', $field)
+    }
+
+    Invoke-Checked -FilePath 'gh' -Arguments $arguments
+
+    $run = Wait-WorkflowRunDiscovery -Owner $Owner -Name $Name -Workflow $Workflow -HeadSha $headSha -QueuedAfterUtc $queuedAfterUtc -CorrelationId $CorrelationId
+    Write-Host "Watching workflow run: $($run.url)"
+
+    Invoke-Checked -FilePath 'gh' -Arguments @(
+        'run',
+        'watch',
+        ([string] $run.databaseId),
+        '--repo',
+        "$Owner/$Name",
+        '--exit-status',
+        '--interval',
+        '10'
     )
 }
 
@@ -271,12 +443,15 @@ Assert-BranchSynchronized
 Assert-TagAvailable -TagName $tagName
 Assert-GitHubReleaseAvailable -TagName $tagName
 Assert-WorkflowAvailable
+Assert-WorkflowAvailable -Owner $MasterRepoOwner -Name $MasterRepoName -Workflow $MasterWorkflowFile
 
 if ($PreflightOnly) {
     Write-Host "Release workflow preflight passed for $Version."
     exit 0
 }
 
-Invoke-ReleaseWorkflow
-Write-Host "Queued GitHub Actions release workflow for $Version."
-Write-Host "View runs: https://github.com/$RepoOwner/$RepoName/actions/workflows/$WorkflowFile"
+$releaseCorrelationId = "release-$RepoName-$Version-$([Guid]::NewGuid().ToString('N'))"
+$masterCorrelationId = "master-$RepoName-$Version-$([Guid]::NewGuid().ToString('N'))"
+Invoke-WorkflowAndWait -Owner $RepoOwner -Name $RepoName -Workflow $WorkflowFile -CorrelationId $releaseCorrelationId -Fields @("version=$Version", "correlation_id=$releaseCorrelationId")
+Invoke-WorkflowAndWait -Owner $MasterRepoOwner -Name $MasterRepoName -Workflow $MasterWorkflowFile -CorrelationId $masterCorrelationId -Fields @("correlation_id=$masterCorrelationId")
+Write-Host "Release and master repository update completed for $Version."
