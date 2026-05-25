@@ -6,3 +6,5 @@ obj/
 TestResults/
 artifacts/
 deploy/
+dist/
+release-bf.local.cmd

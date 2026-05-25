@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Four-part release version, e.g. 0.1.0.1
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Dalamud dev files
+        shell: pwsh
+        run: |
+          $devPath = Join-Path $env:APPDATA 'XIVLauncher\addon\Hooks\dev'
+          New-Item -ItemType Directory -Force $devPath | Out-Null
+          $archivePath = Join-Path $env:RUNNER_TEMP 'dalamud.zip'
+          Invoke-WebRequest -Uri 'https://goatcorp.github.io/dalamud-distrib/stg/latest.zip' -OutFile $archivePath
+          Expand-Archive -Path $archivePath -DestinationPath $devPath -Force
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore .\WhereIsMyHead.sln
+
+      - name: Build, tag, and publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\Build-GitHubRelease.ps1 -Version '${{ inputs.version }}'
