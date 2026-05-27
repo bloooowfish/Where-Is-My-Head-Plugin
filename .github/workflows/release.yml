@@ -27,6 +27,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          submodules: true
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -50,4 +51,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\Build-GitHubRelease.ps1 -Version '${{ inputs.version }}'
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\release-tools\Build-GitHubRelease.ps1 -Config tools\release.config.psd1 -Version '${{ inputs.version }}'
